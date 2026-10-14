@@ -1,0 +1,56 @@
+{
+  "skill_name": "ultracode",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "author-audit-with-quality-patterns",
+      "prompt": "帮我用 ultracode 审计一下这个仓库的错误处理质量：找出所有吞异常（catch 后不处理）和未捕获的 Promise rejection 的位置，确认真的会造成问题的才报告，报告里给出文件行号和为什么危险。仓库根目录 D:\\项目\\dsh-动态工作流\\reference\\ultracode-workflows（脚本很多，够扫一阵子）。",
+      "expected_output": "应触发 skill；产出 dsh workflow 工具调用：meta 作为 JSON 参数（script 代码块中无 export const meta）、含 name/description/phases、pipeline 优先、agent() 仅五选项、含质量模式与 phase()/log() 叙述。",
+      "files": [],
+      "assertions": [
+        { "text": "脚本代码块中不出现 `export const meta`（dsh 禁止 export 语句）", "type": "regex_absent", "scope": "script_block", "pattern": "export\\s+const\\s+meta" },
+        { "text": "以工具参数 JSON 形式给出 meta，含 name 与 description", "type": "regex_present", "pattern": "\"name\"\\s*:\\s*\"" },
+        { "text": "多阶段/逐项工作使用 pipeline", "type": "regex_present", "pattern": "pipeline\\(" },
+        { "text": "agent() 不出现被拒绝的选项（effort/isolation/agentType/stallMs）", "type": "regex_absent", "scope": "script_block", "pattern": "(effort|isolation|agentType|stallMs)\\s*:" },
+        { "text": "含对抗验证/怀疑者/反驳等质量模式", "type": "regex_present", "pattern": "refute|反驳|怀疑|对抗|skeptic" },
+        { "text": "含 phase() 或 {phase} 进度分组与 log() 叙述", "type": "regex_present", "pattern": "phase\\(|\\{\\s*phase\\s*:|log\\(" }
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "trivial-task-no-workflow",
+      "prompt": "我刚把 skills/ultracode/SKILL.md 里的一个错别字改了，帮我看看还有没有别的问题。",
+      "expected_output": "琐碎任务：不应起工作流；直接检查并回答。检验'solo only on trivial turns'触发纪律。",
+      "files": [],
+      "assertions": [
+        { "text": "未产出 workflow 调用/脚本参数块", "type": "regex_absent", "pattern": "workflow\\s*\\(\\s*meta|\"meta\"\\s*:\\s*\\{[^}]*\"name\"" },
+        { "text": "代码块中无工作流脚本（无 agent+phase/pipeline 形态的脚本块）", "type": "regex_absent", "scope": "script_block", "pattern": "agent\\s*\\(|pipeline\\s*\\(|phase\\s*\\(" }
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "multi-workflow-chaining",
+      "prompt": "ultracode: 给这个项目设计一个「工作流结果缓存」能力并实现。先帮我搞清楚现状（会话日志、workflow 运行记录现在都怎么存的），再出方案，我确认后再动代码。",
+      "expected_output": "应触发 skill；明确分阶段（理解→设计→实现）或多工作流串联节奏；尊重'确认后再动代码'；若产出脚本则无 export const meta。",
+      "files": [],
+      "assertions": [
+        { "text": "多阶段串联意图：提及阶段/分段/先侦查再扇出", "type": "regex_present", "pattern": "阶段|分段|串联|scout|understand|理解段|第一段" },
+        { "text": "尊重'确认后再动代码'：理解阶段只读，未产出实现性代码", "type": "regex_absent", "pattern": "开始写代码|直接实现如下|实现代码如下" },
+        { "text": "脚本代码块中无 export const meta（若产出脚本）", "type": "regex_absent", "scope": "script_block", "pattern": "export\\s+const\\s+meta" }
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "review-flawed-script",
+      "prompt": "这是我之前在别的工具里写的一个 workflow 脚本，准备拿到 dsh 上用，帮我看看有什么问题（fixture: evals/fixtures/cc-style-script.js，先读取）。",
+      "expected_output": "指出 export const meta 在 dsh 解析失败；budget 不存在；effort/isolation/agentType 会被拒绝；习惯性屏障；违规选项导致 fatal。",
+      "files": ["evals/fixtures/cc-style-script.js"],
+      "assertions": [
+        { "text": "指出 export const meta 在 dsh 不可用（需改为工具 meta 参数）", "type": "regex_present", "pattern": "export const meta[\\s\\S]{0,120}(解析|失败|不支持|禁止|工具参数|参数)|meta 是工具参数|工具的 meta 参数" },
+        { "text": "指出 budget 钩子 dsh 不存在", "type": "regex_present", "pattern": "budget[\\s\\S]{0,80}(不存在|没有|不支持|dsh)|没有.*budget" },
+        { "text": "指出 effort/isolation/agentType 会被拒绝", "type": "regex_present", "pattern": "(effort|isolation|agentType)[\\s\\S]{0,80}(拒绝|不支持|报错|fatal|不存在|没有)" },
+        { "text": "批评了屏障使用（习惯性屏障/未辩护的 parallel）", "type": "regex_present", "pattern": "屏障|barrier|parallel" }
+      ]
+    }
+  ]
+}

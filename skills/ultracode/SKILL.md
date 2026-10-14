@@ -1,0 +1,114 @@
+---
+name: ultracode
+description: "Ultracode 动态工作流（dynamic workflow）编写与编排纪律——dsh workflow 工具的编写参考、质量模式与触发语义。只要涉及以下任一情形就使用本技能，即使用户没有点名技能：ultracode 档位/会话已开启；用户说出 ultracode、use a workflow、run a workflow、fan out agents、orchestrate with subagents、多 agent 编排、工作流编排、扇出、并行 subagent；任务是大范围审计、全仓迁移、多角度评审、需要对抗验证的调研、未知规模的缺陷/死代码排查；需要编写、审查或修改 dsh 的 workflow 工具脚本（meta、phases、pipeline、parallel）；需要决定一个任务值不值得起工作流。Also use when asked to review or debug an existing workflow script for wasteful, brittle, or misleading orchestration."
+---
+
+# Ultracode：动态工作流编写纪律（dsh 适配版）
+
+一个 workflow 的价值在于：让多个 subagent 产出**真正不同的证据**，或建立一个显式的信任结构（独立验证、对抗反驳、完整性批判、有界修复）来实质性提升结果。脚本负责编码这份结构：谁扇出、谁验证、谁汇总。本技能提供作者判断——何时值得编排、选什么拓扑、怎么写得诚实；执行由 dsh 官方 `workflow` 工具完成。
+
+判断准则先于工具：一个带单一可辩护想法的小脚本，胜过一个微型框架。如果任务很短、严格串行、或无法在不复制上下文的前提下切分，就用普通提示词或一两个 subagent 直接做——如实说出来，不要为了"看起来像 ultracode"而起工作流。
+
+## 何时编排：触发语义
+
+- **ultracode 档位开启 = 常驻显式授权**（对应 Claude Code 的 standing opt-in）：会话挂着 ultracode 提示的回合里，实质性任务默认编写并运行 workflow，目标是最穷尽、最正确的结果；仅对话回合和琐碎机械修改 solo。
+- **用户原话即授权**："use a workflow"、"run a workflow"、"fan out agents"、"多 agent 编排"、"扇出"等——任务本身会从工作流获益但用户没这么说，**不算**显式授权；此时要么用普通 subagent 逐个委派，要么简述一次工作流能做什么、大致多少开销，问用户是否要跑，并提示以后可以直接说"use a workflow"。
+- 这与 dsh 官方 `workflow` 工具自带的 "ONLY when the user explicitly asks" 规则**兼容**：ultracode 档位开启或用户原话要求，即构成该规则所说的显式请求；两者冲突时以官方工具规则为准。
+- 一两项委派永远优先普通 `subagent` 工具，不写工作流。
+
+## 第一步永远是框定，不是数 agent
+
+把任务写成一句话：`输入 → 判断/工作 → 可信结果`。动笔前先写下四个约束：
+
+- **总体规模**：输入是有限清单，还是需要收敛规则的未知尾巴？
+- **依赖**：每个条目能独立推进，还是下一步真的需要全场数据？
+- **信任**：什么证据能反驳候选结果？哪个错误方向代价更高（误报 vs 漏报）？
+- **变更**：只报告、分片不相交的修改，还是必须漏斗化的破坏性操作？
+
+四个答案不支撑编排时，直接说"这不该是工作流"。
+
+**Hybrid 侦查**：不要在知道任务形状之前就编排——先在主对话里内联摸底（列文件、找通道、圈定 diff）拿到工作清单，再调用 workflow 对清单做 pipeline。你要在*编排步*之前知道形状，而不是在*任务*之前。
+
+## 多工作流串联（ultracode 的核心节奏）
+
+大任务不是"一个巨型工作流"，而是按阶段跑**一串**工作流，每段结果回读后再决定下一段——你在段与段之间保持在环内：
+
+| 阶段 | 形状 |
+|---|---|
+| 理解 Understand | 并行读者覆盖相关子系统 → 结构化地图 |
+| 设计 Design | N 个独立方案的评审团 → 打分合成 |
+| 实现 Implement | 发现站点 → 分片改造 → 校验 |
+| 评审 Review | 维度 → 发现 → 对抗验证（见 patterns.md） |
+
+每段是一个边界清晰的扇出。dsh 没有 `workflow()` 嵌套钩子，串联只发生在会话层——这正好就是 Claude Code 推荐的 session-level chaining。
+
+## dsh 脚本契约速查（写错会直接失败，详见 `references/dsh-contract.md`）
+
+- **`meta` 是工具的 JSON 参数，不是脚本语句**：脚本里写 `export const meta = {...}` 会直接解析失败。`meta.name`（短 kebab-case）、`meta.description` 必填，`meta.phases` 的 `title` 与 `phase()`/`{phase}` 的字符串**精确匹配**。
+- 钩子：`agent(prompt, {label, phase, schema, provider, model})`、`pipeline(items, ...stages)`、`parallel(thunks)`、`phase(title)`、`log(message)`、`args`。除这五个选项外的任何 `agent()` 选项（`effort`、`isolation`、`agentType`、`stallMs`…）会被**响亮拒绝并终止脚本**。
+- 纯 JavaScript（非 TS）、顶层 `await` 合法、以 `return <json>` 结尾；**返回值必须是纯 JSON**（含 `Date`/`Map` 实例即报错）；无文件系统/Node API/网络。
+- 上限：单次 `parallel()`/`pipeline()` ≤ 4096 项；单次运行 ≤ 1000 个 `agent()`（失控回退保护）；并发数由引擎按机器自动解析，超出排队。同步死循环会被同步超时杀掉。
+- 每个 `agent()` 可能返回 `null`（子 agent 失败/被取消）——每条路径都要经受住 `null` 并给出诚实结果；`parallel()`/`pipeline()` 对**致命错误**（拼错的选项、坏 schema）直接重抛，这是特性：笔误必须响亮失败，绝不伪装成普通子失败。
+- 长时间扇出用 `run_in_background: true`：立即拿到任务 id，`phase()`/`log()`/成员生命周期经任务环实时流出，完成通知带回返回值。
+
+## 编写纪律速查（详见 `references/patterns.md`）
+
+- **pipeline 默认**：条目 A 的下一步只依赖条目 A 就用 `pipeline`；`parallel` 是屏障，每个屏障都要写得出辩护注释（全局去重/跨项聚合/全场评审/两路 join）。屏障后面如果只是 flatten/map/filter 再扇出——那是穿着屏障外衣的 pipeline。
+- pipeline 阶段内部用 `{phase: '...'}` 选项分组，**不要**用全局 `phase()`（并发条目会竞争全局状态）。
+- **loop 收敛四件套**：收敛信号（连续 K 轮无新发现）+ 硬上限 + 结果里区分 "dry" 与 "stopped" + 每个上限披露余量。按轮次轮换搜索视角（用轮号切片，确定性）。
+- **质量模式**（按任务取用）：对抗验证（默认反驳）、非对称风险偏置（默认保留）、逐假设证伪、证据先行、双向事实核查、评审团（匿名+保留异议）、多模态扫描、完整性批判（输出可执行的修复指令）、no silent caps（截断必须 `log()` 且写进返回值）。
+- **机制归代码，判断归 agent**：去重、计票、排序、切片用普通 JS；"这两条是不是同一件事" 这种判断才花一个 agent。
+- 结构化边界全部用 `schema`（dsh 支持的子集见契约文档）；自由文本只留给最终给人看的报告字段。
+
+## 呈现纪律（视觉不刷屏——pi 版翻车的教训）
+
+- `phase()` 在顶层阶段间推进；`log()` 在每个关键节点发声（轮次产出、上限触发、提前中止）——用户看的是叙述线，不是代码。
+- 成员 `label` 简短可辨：`review:auth`、`verify:login.ts` 这种 `<动词>:<对象>` 形态；进度树靠 label 分辨成员。
+- **子 agent 输出要短**：在每个 `agent()` 提示词里要求"结论+证据+文件行号，勿贴大段源码"；大块材料让子 agent 落到工作区文件并只回传路径。子 agent 的最终文本就是返回值——它属于脚本数据，不是给人看的消息。
+- 主对话里**不粘贴**子 agent 原始日志、不主动全文展示脚本；把材料用文件交接，最终报告只给一份整合结论。
+- 出现截断、跳过、上限时如实 `log()`——静默截断会被读成"已全覆盖"。
+
+## dsh 没有的能力（诚实清单，不硬造）
+
+| Claude Code 有 | dsh 现状 | 替代路径 |
+|---|---|---|
+| `budget.total/spent/remaining()` | **无**（引擎不记 token 预算） | 用轮次/agent 数上限控制规模；用户给了预算要求时，把预算换算成 fleet/轮次上限并在 `log()` 里汇报进度 |
+| `workflow()` 嵌套、具名/saved workflow、`scriptPath`+`resumeFromRunId` 续跑 | **无**（官方明确 "No saved or nested workflows"） | 会话层串联（本文件"多工作流串联"）；中断重跑时把中间结果经 `args` 传入新脚本 |
+| `agent()` 的 `effort`/`isolation`/`agentType` | **无**（会被拒绝） | 并发编辑靠"分片不相交"而非 worktree；需要不同模型时用 `provider`/`model` 覆盖（慎用） |
+| `/workflows` 暂停/重启单 agent | 取消整个运行：后台任务的 `job_kill` 或停止控件 | 重要中间产物落文件，重跑代价可控 |
+
+不要在脚本或解释里引用这些不存在的钩子——写了会失败，承诺了会失信。
+
+## 编写流程（八步）
+
+1. **框定**：一句话 + 四约束（上文）。不值得就停。
+2. **选先例**：为数据流找一个结构先例、为信任偏置找一个信任先例、规模难时再找规模先例；借**不变式**不借表象（"三个 agent"不是不变式，"独立发现模态 + 因删除代价不对称而默认保留的怀疑者"才是）。写下被否决的模式及理由。
+3. **先设计数据流再写提示词**：从最终结构化结果倒推阶段表（输入/判断/输出契约/并发/失败含义）。每个完整性声明要有计数、清单、反向核查或显式余量。
+4. **组最小充分拓扑**：pipeline 默认；信任结构放在"假答案会存活"的位置；规模模式只在真的难处用（清单分片、先侦察后扫描、先线索后深读、波次+提前中止）。
+5. **对着契约起草**：读 `references/dsh-contract.md`；meta 作为工具参数；schema 定义先行；提示词自包含（任务+charter+anti-charter+内联上游数据+诚实阀）；`parallel` 传 thunk；处处 `.filter(Boolean)` 意识；每个屏障写辩护注释。
+6. **静态审查**（不跑只读）：meta/phase 对齐；null 路径；屏障辩护；循环终止；上限披露；返回值纯 JSON；禁用选项未出现；注释与实现一致。
+7. **交付**：脚本经工具调用内联提交（**不要**先写文件再引用）；报告它编排了什么、借了哪些模式、信任来自哪里、什么仍不确定、上限/覆盖了什么、还可能缺什么。
+8. **（可选）草图**：用户需要直观理解时，用一个 mermaid/ASCII 拓扑草图辅助说明——它是解释性草图，不是执行证明。
+
+## 评审启发式（审查别人的脚本时）
+
+拒绝或返工这些设计：
+
+- **装饰性扇出**：相同提示词换标签。改成不同 charter+anti-charter，或干脆一个 agent。
+- **习惯性屏障**：条目独立却先收集全场。改成 pipeline。
+- **自证**：同一 agent 既提出又批准结论。加独立证据，或把结果标为 provisional。
+- **虚假完整性**：top-N 结果被当成穷尽。返回余量与截断理由。
+- **固定穷举扫描**：未知总体却固定轮数。改有界收敛循环，或声明"这是抽样"。
+- **并行破坏性写者**：agent 互相覆盖。分片不相交，或漏斗过单个阶段。
+- **把人的问题伪装成模型判断**：工作流替用户拍产品决策。返回 checkpoint/openQuestions，答案走下一次 `args`。
+- **一次性的抽象**：三行脚本套 helper 框架。内联直到重复真实存在。
+
+调试映射：串行慢 → 传了 promise 而非 thunk；发现重复 → 缺 anti-charter 或稳定键去重；跳过的 agent 之后崩 → 未守卫 `null`；进度误导 → phase 漂移或未经辩护的静态假设；轮次不收敛 → `seen` 集不对、无收敛状态、或上限未披露余量。
+
+## 参考路由（按需读，读就读完）
+
+| 文件 | 何时读 |
+|---|---|
+| `references/dsh-contract.md` | 起草或调试脚本语法、meta、钩子语义、schema、失败与上限行为时——**写任何脚本前必读** |
+| `references/patterns.md` | 推理屏障、收敛、验证、多样性、规模、分工时 |
+| `references/archetypes.md` | 选任务原型、组合两个模式、多阶段串联、判断"何时不用工作流"时 |

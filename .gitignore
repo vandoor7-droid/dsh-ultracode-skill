@@ -1,0 +1,9 @@
+# 本地研究材料与评测产物，不入库
+reference/
+.playwright-mcp/
+ultracode-workspace/
+
+# 依赖与编辑器
+node_modules/
+*.log
+.DS_Store
