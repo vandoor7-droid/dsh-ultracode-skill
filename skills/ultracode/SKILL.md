@@ -1,6 +1,6 @@
 ---
 name: ultracode
-description: "Ultracode 动态工作流（dynamic workflow）编写与编排纪律——dsh workflow 工具的编写参考、质量模式与触发语义。只要涉及以下任一情形就使用本技能，即使用户没有点名技能：ultracode 档位/会话已开启；用户说出 ultracode、use a workflow、run a workflow、fan out agents、orchestrate with subagents、多 agent 编排、工作流编排、扇出、并行 subagent；任务是大范围审计、全仓迁移、多角度评审、需要对抗验证的调研、未知规模的缺陷/死代码排查；需要编写、审查或修改 dsh 的 workflow 工具脚本（meta、phases、pipeline、parallel）；需要决定一个任务值不值得起工作流。Also use when asked to review or debug an existing workflow script for wasteful, brittle, or misleading orchestration."
+description: "Ultracode 动态工作流（dynamic workflow）编写与编排纪律——dsh workflow 工具的编写参考、质量模式与触发语义。只要涉及以下任一情形就使用本技能，即使用户没有点名技能：ultracode 档位/会话已开启；用户说出 ultracode、use a workflow、run a workflow、fan out agents、orchestrate with subagents、多 agent 编排、工作流编排、扇出、并行 subagent；任务是大范围审计、全仓迁移、多角度评审、需要对抗验证的调研；未知规模或跨多子系统的深度调研与全景理解（架构梳理、全仓上手、并行通读后画地图）、根因诊断与不稳定排查（flaky test 根因、多方向证据收集、死代码排查）；需要编写、审查或修改 dsh 的 workflow 工具脚本（meta、phases、pipeline、parallel）；需要决定一个任务值不值得起工作流。Also use when asked to review or debug an existing workflow script for wasteful, brittle, or misleading orchestration."
 ---
 
 # Ultracode：动态工作流编写纪律（dsh 适配版）

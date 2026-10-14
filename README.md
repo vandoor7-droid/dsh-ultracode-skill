@@ -56,4 +56,8 @@ Copy-Item -Recurse .\skills\ultracode "$env:USERPROFILE\.dsh\skills\ultracode"
 
 ## 评测
 
-见 [evals/evals.json](evals/evals.json)：4 条用例 ×（有/无 skill）对照，断言涵盖 `export const meta` 禁令、meta/phases 完整性、pipeline 优先、质量模式、触发准确性。结果与逐轮改进记录在 `ultracode-workspace/`。
+见 [evals/evals.json](evals/evals.json)：4 条用例 ×（有/无 skill）对照，断言涵盖 `export const meta` 禁令、meta/phases 完整性、pipeline 优先、质量模式、触发准确性；15/15 断言两侧全过——基线受官方 workflow 工具描述（注入所有 agent 上下文）污染，二元契约断言无区分度，定性差异以分析员判读记录（with_skill：八步流程、屏障辩护 11 处、评审启发式分类 vs 基线平铺）。
+
+**触发优化**（20 条 should/shouldn't-query 盲判，judger 只见查询与目录）：R1 敏感度 9/11、误触 0/9 → description 补"全景理解/架构梳理/根因诊断"触发词 → **R2 敏感度 11/11（100%）、误触 0/9（0%）**。
+
+结果与逐轮改进记录在 `ultracode-workspace/`（本地评测产物，不入库）。
