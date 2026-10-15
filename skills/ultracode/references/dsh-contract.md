@@ -66,8 +66,8 @@ dsh `workflow` 工具的硬契约（宿主强制执行）与可信脚本约定�
 
 ### 1.6 运行形态与取消
 
-- 默认前台执行：工具调用等待运行结束，父轮次挂起；结果包络 `{ kind: 'foreground', runId, agentsStarted, result }`，渲染为 `workflow "<name>" completed (N agents).` + 返回值 JSON。
-- `run_in_background: true`（配置允许时，默认可用）：立即返回 `{ kind: 'background', jobId, runId }`，运行以自有 `workflow` 任务注册进 `ctx.jobs`——任务环**实时流出** `phase()`、`log()` 与成员生命周期行；完成通知携带渲染后的返回值。取消途径：`job_kill`、任务列表停止控件。
+- 前台执行（**省略 `run_in_background` 时的默认**）：工具调用等待运行结束，父轮次挂起；结果包络 `{ kind: 'foreground', runId, agentsStarted, result }`，渲染为 `workflow "<name>" completed (N agents).` + 返回值 JSON。**这是例外路径**——只在用户明确要求等结果、且本轮无其他独立工作可做时使用。
+- `run_in_background: true`（**ultracode 的常规调用方式**；配置允许时默认可用）：立即返回 `{ kind: 'background', jobId, runId }`，主对话不被阻塞；运行以自有 `workflow` 任务注册进 `ctx.jobs`——任务环**实时流出** `phase()`、`log()` 与成员生命周期行；完成通知携带渲染后的返回值（模型结算后首次 `job_output` 亦会再给一次）。依赖结果的正确姿势是"后台启动 → 先做独立工作 → `job_output(wait: true)` 收"，不是前台干等。取消途径：`job_kill`、任务列表停止控件；没有工具步骤信号能到达该运行。
 - 取消与失败返回 `Error: workflow run was cancelled` / `Error: workflow run failed: <error>`；部分输出绝不报告为成功。
 - 子 agent 的中间消息**不会**进入父对话；父级只看到最终结果。
 
